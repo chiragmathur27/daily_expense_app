@@ -3,6 +3,9 @@ from app.models import Expense, BalanceSheet
 from app.database import database
 from app.utils import calculate_balances, validate_expense
 from typing import List
+from fastapi.responses import StreamingResponse
+import io
+import csv
 
 router = APIRouter()
 
@@ -28,5 +31,25 @@ async def get_user_balance(email: str):
 @router.get("/balances/download")
 async def download_balance_sheet():
     balances = await database.balances.find().to_list(None)
-    # Implement balance sheet generation and download logic here
-    return {"message": "Balance sheet downloaded"}
+    
+    # Create a StringIO object to store the CSV data
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write the header row
+    writer.writerow(["User Email", "Owes", "Owed"])
+    
+    # Write the balance data
+    for balance in balances:
+        writer.writerow([balance["user_email"], balance["owes"], balance["owed"]])
+    
+    # Create a StreamingResponse with the CSV data
+    response = StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=balance_sheet.csv"
+        }
+    )
+    
+    return response
